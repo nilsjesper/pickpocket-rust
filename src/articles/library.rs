@@ -121,9 +121,9 @@ impl Library {
         let api = API::new();
         let library = Library::load();
 
-        // Delete read articles from Pocket
+        // Archive read articles in Pocket
         let read_articles: Vec<&Article> = library.read.articles.values().collect();
-        api.delete(read_articles);
+        api.archive(read_articles);
 
         // Retrieve new articles from Pocket
         let api_list = api.retrieve()["list"].to_owned();
