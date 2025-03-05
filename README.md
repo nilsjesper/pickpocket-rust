@@ -4,6 +4,13 @@
 
 Pickpocket is a command line tool which will help you with your [Pocket](http://getpocket.com/) library. It selects a random article for you to read, opening your browser and marking it is deleted.
 
+## Updates in v0.2.0
+
+- Fixed pagination issue with Pocket API to retrieve all saved articles (previously only retrieved the first 30 articles)
+- Updated all dependencies to their latest versions
+- Improved error handling and user feedback
+- Made the `-q` (quantity) parameter optional with a default value of 1
+
 ## Installation
 
 Pickpocket is distributed as a Rust crate.
@@ -32,6 +39,7 @@ To use Pickpocket, you first need to go through Pocket's OAuth authentication pr
     - `pickpocket pick -q 10` (open 10 articles)
 - `pickpocket renew`
   - This will synchronize your local library with your remote. Keep in mind: any article marked as read **WILL BE DELETED** from your remote library
+  - Now supports pagination to retrieve all your saved articles, not just the first 30
 - `pickpocket status`
   - Show the number of read/unread articles you have on your local library
 

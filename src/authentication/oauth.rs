@@ -20,21 +20,38 @@ impl OAuth {
             ("consumer_key", consumer_key),
             ("redirect_uri", pocket_homepage),
         ];
-        let response = reqwest::Client::new().post(oauth_url).form(&params).send();
+
+        let client = reqwest::blocking::Client::new();
+        let response = client.post(oauth_url).form(&params).send();
 
         let response_token = match response {
-            Ok(mut response) => {
-                let response_text = response.text().unwrap();
-                let mut parse = url::form_urlencoded::parse(response_text.as_bytes());
+            Ok(response) => match response.text() {
+                Ok(response_text) => {
+                    let mut parse = url::form_urlencoded::parse(response_text.as_bytes());
 
-                let (_code, response_token) = parse.next().unwrap();
-                response_token.to_string()
-            }
-            Err(_) => {
-                logger::log("Could not connect to Pocket");
+                    match parse.next() {
+                        Some((_code, response_token)) => response_token.to_string(),
+                        None => {
+                            logger::log("Could not parse Pocket's response");
+                            "Error".to_owned()
+                        }
+                    }
+                }
+                Err(e) => {
+                    logger::log(&format!("Could not read Pocket's response: {}", e));
+                    "Error".to_owned()
+                }
+            },
+            Err(e) => {
+                logger::log(&format!("Could not connect to Pocket: {}", e));
                 "Error".to_owned()
             }
         };
+
+        if response_token == "Error" {
+            logger::log("OAuth authorization failed. Please try again.");
+            return;
+        }
 
         // Open auth on browser
         let query_string = format!(
@@ -43,10 +60,21 @@ impl OAuth {
         );
         let mut open_on_browser_url = url::Url::parse(auth_url).unwrap();
         open_on_browser_url.set_query(Some(&query_string));
-        open::that(open_on_browser_url.into_string()).ok();
+
+        match open::that(open_on_browser_url.to_string()) {
+            Ok(_) => {
+                logger::log(
+                    "Browser opened for authorization. Please authorize the app in your browser.",
+                );
+            }
+            Err(e) => {
+                logger::log(&format!("Could not open browser: {}", e));
+            }
+        }
 
         // Save OAuth token on file
         token_handler.save_oauth(&response_token);
+        logger::log("OAuth token saved. Now run 'pickpocket authorize' to complete the authorization process.");
     }
 
     pub fn authorize() {
@@ -60,23 +88,41 @@ impl OAuth {
 
         // Request authorization token (with OAuth token + consumer key)
         let params = [("consumer_key", consumer_key), ("code", &response_token)];
-        let response = reqwest::Client::new().post(uri).form(&params).send();
+
+        let client = reqwest::blocking::Client::new();
+        let response = client.post(uri).form(&params).send();
 
         let response_token = match response {
-            Ok(mut response) => {
-                let response_text = response.text().unwrap();
-                let mut parse = url::form_urlencoded::parse(response_text.as_bytes());
+            Ok(response) => match response.text() {
+                Ok(response_text) => {
+                    let mut parse = url::form_urlencoded::parse(response_text.as_bytes());
 
-                let (_code, response_token) = parse.next().unwrap();
-                response_token.to_string()
-            }
-            Err(_) => {
-                logger::log("Could not connect to Pocket");
+                    match parse.next() {
+                        Some((_code, response_token)) => response_token.to_string(),
+                        None => {
+                            logger::log("Could not parse Pocket's response");
+                            "Error".to_owned()
+                        }
+                    }
+                }
+                Err(e) => {
+                    logger::log(&format!("Could not read Pocket's response: {}", e));
+                    "Error".to_owned()
+                }
+            },
+            Err(e) => {
+                logger::log(&format!("Could not connect to Pocket: {}", e));
                 "Error".to_owned()
             }
         };
 
+        if response_token == "Error" {
+            logger::log("Authorization failed. Please try the OAuth process again.");
+            return;
+        }
+
         // Save authentication token
         token_handler.save_auth(&response_token);
+        logger::log("Authorization successful! You can now use pickpocket.");
     }
 }
