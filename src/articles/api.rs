@@ -8,7 +8,6 @@ use std::collections::HashMap;
 use std::error::Error;
 
 static ACTION_DELETE: &str = "delete";
-static STATE_UNREAD: &str = "unread";
 
 pub struct API {
     configuration: Configuration,

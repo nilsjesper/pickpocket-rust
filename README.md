@@ -4,6 +4,14 @@
 
 Pickpocket is a command line tool which will help you with your [Pocket](http://getpocket.com/) library. It selects a random article for you to read, opening your browser and marking it is deleted.
 
+## Updates in v0.3.0
+
+- Completely redesigned pagination logic to handle Pocket API's inconsistent responses
+- Enhanced debugging capabilities with detailed logging throughout the application
+- Fixed issue where the API would stop after retrieving only the first page of articles
+- Improved error handling and reporting for better troubleshooting
+- Added safety mechanisms to prevent infinite loops during pagination
+
 ## Updates in v0.2.0
 
 - Fixed pagination issue with Pocket API to retrieve all saved articles (previously only retrieved the first 30 articles)
