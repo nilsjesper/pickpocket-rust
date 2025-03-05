@@ -103,39 +103,17 @@ impl Library {
 
     pub fn pick(quantity: Option<usize>) {
         let quantity = quantity.unwrap_or(1);
-        let mut opened_count = 0;
 
-        for i in 0..quantity {
+        for _ in 0..quantity {
             match Library::random_unread_article() {
                 Some(article) => {
-                    Library::move_to_read(article.id.clone());
-
-                    logger::log(&format!(
-                        "Opening article {}/{}: {}",
-                        i + 1,
-                        quantity,
-                        article.title
-                    ));
-
-                    match open::that(&article.url) {
-                        Ok(_) => {
-                            opened_count += 1;
-                        }
-                        Err(e) => {
-                            logger::log(&format!("Failed to open article: {}", e));
-                            logger::log(&format!("URL: {}", article.url));
-                        }
-                    }
+                    Library::move_to_read(article.id);
+                    open::that(article.url).ok();
                 }
                 None => {
                     logger::log("You have read all articles!");
-                    break;
                 }
             };
-        }
-
-        if opened_count > 0 {
-            logger::log(&format!("Opened {} article(s)", opened_count));
         }
     }
 
@@ -145,85 +123,15 @@ impl Library {
 
         // Delete read articles from Pocket
         let read_articles: Vec<&Article> = library.read.articles.values().collect();
-        if !read_articles.is_empty() {
-            logger::log(&format!(
-                "Deleting {} read articles from Pocket",
-                read_articles.len()
-            ));
-            api.delete(read_articles);
-        } else {
-            logger::log("No read articles to delete");
-        }
+        api.delete(read_articles);
 
         // Retrieve new articles from Pocket
-        logger::log(
-            "Retrieving articles from Pocket (this may take a while for large libraries)...",
-        );
-
-        // Call the new retrieve method with count=30 and offset=0
-        let api_response_result = api.retrieve(30, 0);
-
-        if let Err(e) = &api_response_result {
-            logger::error(&format!("Failed to retrieve articles from Pocket: {}", e));
-            return;
-        }
-
-        let api_response_str = api_response_result.unwrap();
-        let api_response: serde_json::Value = match serde_json::from_str(&api_response_str) {
-            Ok(value) => value,
-            Err(e) => {
-                logger::error(&format!("Error parsing API response: {}", e));
-                return;
-            }
-        };
-
-        logger::debug("Examining API response structure");
-        if let Some(status) = api_response.get("status") {
-            logger::debug(&format!("API response status: {}", status));
-        }
-
-        let api_list = api_response["list"].to_owned();
-        logger::debug(&format!(
-            "API list type: {}",
-            if api_list.is_object() {
-                "object"
-            } else {
-                "not object"
-            }
-        ));
-
+        let api_list = api.retrieve()["list"].to_owned();
         let api_articles =
             match serde_json::from_value::<HashMap<String, serde_json::Value>>(api_list) {
-                Ok(articles) => {
-                    logger::debug(&format!(
-                        "Successfully parsed {} articles from API response",
-                        articles.len()
-                    ));
-                    articles
-                }
-                Err(e) => {
-                    logger::error(&format!("Error parsing Pocket response: {}", e));
-                    HashMap::new()
-                }
+                Ok(articles) => articles,
+                Err(_) => HashMap::new(),
             };
-
-        logger::log(&format!(
-            "Retrieved {} articles from Pocket",
-            api_articles.len()
-        ));
-
-        // Sample a few articles to verify content
-        if !api_articles.is_empty() {
-            let sample_count = std::cmp::min(3, api_articles.len());
-            logger::debug(&format!("Sampling {} articles:", sample_count));
-
-            for (i, (id, article)) in api_articles.iter().take(sample_count).enumerate() {
-                let title = article["resolved_title"]
-                    .as_str()
-                    .unwrap_or_else(|| article["given_title"].as_str().unwrap_or("No title"));
-                logger::debug(&format!("  Sample {}: ID={}, Title={}", i + 1, id, title));
-            }
-        }
 
         let new_inventory: HashMap<String, Article> = api_articles
             .into_iter()
@@ -232,15 +140,15 @@ impl Library {
                 let given_title = data["given_title"].as_str();
 
                 let title = match resolved_title {
-                    Some(title) if !title.is_empty() => title,
-                    _ => given_title.unwrap_or("Untitled"),
+                    Some(title) => title,
+                    None => given_title.unwrap_or(""),
                 };
 
                 (
                     id.to_string(),
                     Article {
                         id: id.to_owned(),
-                        url: data["given_url"].as_str().unwrap_or("").to_owned(),
+                        url: data["given_url"].as_str().unwrap().to_owned(),
                         title: title.to_owned(),
                     },
                 )
@@ -256,9 +164,6 @@ impl Library {
         };
 
         Library::write_inventory(&new_library);
-        logger::log(&format!(
-            "Refreshed library with {} unread articles",
-            new_library.unread.articles.len()
-        ));
+        logger::log("Refreshed library");
     }
 }
